@@ -1,0 +1,9 @@
+Zhang, Qian: Designed the MVC pattern and wrote all the eight controllers and all fxml files, designed the whole graphic
+    user interface for phase2 and decide the content in it, add new features to the process , modified Javadoc in
+    controllers and modules, debugging the program, modify the code smells and write txt files.
+
+Zhan, Zipei: Rewrite most classes from phase1 to suit the MVC pattern, implemented new methods for phase 2, designed the
+    static database design to fit the new design, debugged the program and modified some txt files.
+
+Lin, Ziyang: Write and reformat the txt files of Recipes.txt, Ingredients.txt, correct the ingredient bugs and request.txt
+    problems from phase1, write the Javadoc, write and modified the file readers and writers for the new requirements of phase2.

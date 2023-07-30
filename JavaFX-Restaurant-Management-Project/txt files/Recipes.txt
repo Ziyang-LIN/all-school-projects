@@ -1,0 +1,25 @@
+Spicy Tuna Tartare Salad/2 Mayonnaise, 1 SoySauce, 8 Tuna, 1 Chive/7.99
+Taco Salad/1 Cilantro, 1 Jalapeno, 2 Lime, 1 Oil, 1 Honey, 2 Salt, 2 Tomato, 1 Garlic, 1 ChiliPowder, 1 Cumin, 1 Paprika/6.99
+Santa Fe Chicken Salad/1 Pepper, 1 Lime, 2 Garlic, 1 Cumin, 1 Salt, 1 BlackPepper, 4 Oil, 1 Corn, 2 ChickenBreast, 4 Lettuce, 1 BlackBean, 1 Avocado, 1 Corn, 1 Cilantro/7.99
+Chicken Soup with Wild Rice/1 Mushroom, 1 Celery, 1 Carrot, 1 Onion, 1 Garlic, 1 Thyme, 1 Butter, 1 Flour, 1 Cream, 3 Rice, 2 Chicken/9.99
+French Onion Soup/5 Onion, 2 Butter, 1 Sugar, 1 Salt, 3 Flour, 6 Beef, 1 Wine, 1 Salt, 1 Pepper, 12 Cheese, 8 Bread, 5 Oil/9.99
+Mozzarella Sticks/1 Flour, 1 Bread, 2 Egg, 1 Milk, 1 Cheese, 1 Oil, 1 PizzaSauce/4.99
+Bacon Wrapped Callops/2 Scallop, 3 Bacon, 1 Butter, 2 ChiliPowder/6.99
+Baked Brie/4 Brie, 4 Honey/8.99
+Baked Brie (Figs and Walnuts)/4 Jam, 1 Fig, 1 Pistachio, 2 Walnut, 3 Brie/7.99
+Bite Sized Blooming Onions/2 Onion, 2 Egg, 1 Butter, 1 Salt, 1 Paprika, 1 Pepper, 1 Garlic, 1 Oil/4.99
+BBQ Ribs/4 Rib, 1 Sugar, 1 Salt, 1 Paprika, 1 Garlic, 2 BarbecueSauce/16.99
+Sticky Baked Chicken Wings/2 ChickenWing, 1 Oil, 1 SoySauce, 1 Lime/12.99
+Paleo Ramen/1 Noodle, 1 Chicken, 3 Garlic, 2 Carrot, 1 Mushroom, 1 ChiliPowder, 1 Lime, 1 Honey, 2 Egg/13.99
+Hawaiian Fried Rice/4 SoySauce, 2 Oil, 1 HotSauce, 2 Ham, 1 Pepper, 6 Onion, 3 Garlic, 5 Rice, 3 Egg, 1 Pineapple/15.99
+Grilled Shrimp/1 Garlic, 1 Salt, 1 Pepper, 1 Paprika, 2 Oil, 1 Lemon, 20 Shrimp/12.99
+Billy Miner Pie/1 Butter, 2 Oreo, 3 Chocolate, 1 Butter, 3 Sugar, 1 Salt, 1 Milk, 1 Vanilla, 1 Almond, 4 Cream, 1 Pecan/12.99
+Butter Toffee-Pecan Layer Cake/2 Walnut, 1 Chocolate, 1 Flour, 1 Coffee, 5 Egg, 5 Sugar, 3 Vanilla, 1 Salt, 1 Butter, 1 Rum/11.99
+S’mores Poke Brownies/1 Brownie, 20 Marshmallow, 2 FudgeSauce, 4 Cracker/9.99
+Key Lime Pie/14 Milk, 1 Lime, 6 Chocolate, 6 Cracker, 3 Sugar/13.99
+Cherry Lemon Basil Clafoutis/1 Butter, 3 Sugar, 6 Egg, 1 Lemon, 1 Milk, 3 Salt, 1 Vanilla, 8 Basil, 3 Flour, 3 Cherry/11.99
+Apple Juice/1 Apple, 2 Ice/3.99
+Orange Juice/1 Orange, 2 Ice/3.99
+Strawberry Juice/1 Strawberry, 2 Ice/3.99
+Lemonade/1 Lemon, 2 Ice/3.99
+Pepsi/1 Coke, 2 Ice/3.99

@@ -1,0 +1,10 @@
+LOG FILE
+Time:      Activity:
+[2018-04-05 20:39:16]  the order: Billy Miner Pie from Table03 has been placed
+
+[2018-04-05 20:39:23] Billy Miner Pieis received by the cook.
+[2018-04-05 20:39:24] Billy Miner Pieis ready for pick up.[2018-04-05 20:40:35]  the order: Taco Salad from Table03 has been placed
+
+[2018-04-05 20:40:45] Taco Saladis received by the cook.
+[2018-04-05 20:40:46] Taco Saladis ready for pick up.
+[2018-04-05 20:40:59] 03 Taco Salad has been picked up for delivery.[2018-04-05 21:15:52]  the order: Key Lime Pie from Table05 has been placed

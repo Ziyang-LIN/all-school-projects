@@ -1,0 +1,504 @@
+---
+title: "EDAV Assessment 3"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, echo=FALSE, message=FALSE}
+library(lubridate)
+library(tseries)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(gridExtra)
+library(matrixcalc)
+library(MTS)
+library(forecast)
+library(maditr)
+```
+
+Read the data and see the categories present in Energy Consumption in the Residential Sector.
+
+```{r read data and categories}
+ec <- read_csv("MER_ResEnergyConsumption.csv", col_names = TRUE, show_col_types = FALSE)
+categories <-  unique(ec[c("MSN", "Description", "Unit")])
+
+## total energy consumed, total fossil fuels, total renewable MSN
+total_energy_consumption <- c("FFRCBUS", "RERCBUS", "TERCBUS")
+## the categories under the renewable energy 
+renewable_categories <- c("SORCBUS", "GERCBUS", "BMRCBUS")
+## these categories are under the fossil fuels
+fossil_fuels_categories <- c("PARCBUS", "NNRCBUS", "CLRCBUS")
+```
+
+The categories of data: MSN, Descriptions and Unit of measurement.
+
+```{r print categories}
+knitr::kable(categories,caption="Categories ")
+```
+
+```{r  warning=FALSE, error=FALSE, message=FALSE}
+select_series <- function(names) {
+  energy_tbl <- ec %>% rowwise() %>% filter(MSN %in% names) %>% select(YYYYMM, Value, MSN)
+  ## drop_na drops the 13th month which is the year total for each category
+  energy_tbl <- energy_tbl %>% mutate(date=ym(YYYYMM)) %>% drop_na() 
+  energy_tbl <- energy_tbl %>% select(-c("YYYYMM")) %>% mutate(Value=as.numeric(Value))
+  
+}
+
+plot_series <- function(names, title) {
+  series <- select_series(names)
+  ggplot(series, aes(x = date, y = Value, col = MSN)) + geom_line() +
+    ggtitle(title) +
+    ylab("Trillion Btu") +xlab("") +
+    scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+    scale_colour_manual(name = "Energy Source",labels = c("Fossil Fuels", "Renewable","Total"), values = c("coral", "forestgreen","maroon4"))+
+    theme(plot.title = element_text(hjust = 0.5))
+}
+plot_series(total_energy_consumption, "Energy Source by the Residential Consumption")
+
+```
+```{r, data manip, warning = FALSE, echo = FALSE}
+
+ecvalue<-as.numeric(ec$Value)
+ecvalue[is.na(ecvalue)] <- 0
+
+ec2<-data.frame(ec$YYYYMM,as.factor(ec$MSN),ecvalue) 
+colnames(ec2)[1:3]<-c("YearMonth1","EnergySource","TrillionBtu")
+
+ec3<-mutate(ec2,YearMonth = ym(YearMonth1))
+
+ec4<-drop_na(ec3)
+
+ec4<-ec4[-1] #remove the first column
+
+# turn a long data into a wide data using the reshape2 package
+WideData<-dcast(ec4,YearMonth~EnergySource,value.var = "TrillionBtu")
+WideData2k<-filter(WideData,YearMonth >='2000-01-01')
+
+# create a new variable to show the difference that make up the total energy consumption, subtract fossil fuel and renewable
+WideData2ka<-mutate(WideData2k,TtlLRF = TERCBUS - FFRCBUS - RERCBUS) # TtLRF shows the difference
+
+WideDataChart1<-select(WideData2ka,YearMonth,TtlLRF,FFRCBUS,RERCBUS)
+
+LongDataChart1<-melt(WideDataChart1,measure.vars = c("TtlLRF","FFRCBUS","RERCBUS"),variable.name = "EnergySource", value.name = 'TrillionBtu')
+```
+
+```{r, Graph1 Option 2}
+# Chart 1 Version 2
+TotalPlot1b<-  ggplot(LongDataChart1, aes(x = YearMonth, y = TrillionBtu, col = EnergySource)) + geom_line() +
+  ggtitle("Energy Source by the Residential Consumption") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  scale_colour_manual(name = "Energy Source",labels = c("Other","Fossil Fuels","Renewable" ), values = c("coral","maroon4","forestgreen"))+
+  theme(plot.title = element_text(hjust = 0.5))
+TotalPlot1b
+
+```
+
+```{r, Graph1 Option 3}
+# Chart 1 Version 3
+TotalPlot1c<-  ggplot(LongDataChart1, aes(x = YearMonth, y = TrillionBtu, fill = EnergySource)) + geom_area() +
+  scale_fill_discrete(name = "Energy\nSource", breaks = c("FFRCBUS","RERCBUS","TtlLRF"), labels=c("Fossil Fuels","Renewable","Other"))+
+  ggtitle("Residential Consumption by Energy Source") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+TotalPlot1c
+
+```
+
+
+```{r, 6 different energy sources}
+WideDataChart2<-select(WideData2ka,YearMonth,CLRCBUS,NNRCBUS,PARCBUS,GERCBUS,SORCBUS,BMRCBUS)
+
+LongDataChart2<-melt(WideDataChart2,measure.vars = c("CLRCBUS","NNRCBUS","PARCBUS","GERCBUS","SORCBUS","BMRCBUS"),variable.name = "EnergySource", value.name = 'TrillionBtu')
+
+
+# Chart 2 Version 1
+TotalPlot2a<-  ggplot(LongDataChart2, aes(x = YearMonth, y = TrillionBtu, fill = EnergySource)) + geom_area() +
+  scale_fill_discrete(name = "Energy\nSource", breaks = c("CLRCBUS","NNRCBUS","PARCBUS","GERCBUS","SORCBUS","BMRCBUS"), labels=c("Coal","Natural Gas","Petroleum","Geothermal","Solar","Biomass"))+
+  ggtitle("Residential Consumption by Energy Source") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+TotalPlot2a
+```
+
+
+```{r, Annual Data, warning=FALSE, echo=FALSE}
+library(stringr)
+Annual1<-mutate(ec2,endstr = str_sub(ec2$YearMonth,-2,-1))
+Annual1<-mutate(Annual1,Year = as.numeric(str_sub(Annual1$YearMonth,1,4)))
+
+Annual2<-filter(Annual1,endstr =='13' & Year >= 2000)
+AnnualLong<-select(Annual2,Year,EnergySource,TrillionBtu)
+AnnualLong$Year<-as.Date(paste(AnnualLong$Year,01,01,sep="-"))
+                         
+                         
+
+Chart2Sources<-c("CLRCBUS","NNRCBUS","PARCBUS","GERCBUS","SORCBUS","BMRCBUS")
+Chart2LongPA<-filter(AnnualLong,EnergySource %in% Chart2Sources)
+
+
+```
+
+```{r, Chart 2 version 2, using Annual Raw Data}
+
+
+# Chart 2 Version 2 - Annual Raw Data
+TotalPlot2b<-  ggplot(Chart2LongPA, aes(x = Year, y = TrillionBtu, fill = EnergySource)) + geom_area() +
+  scale_fill_discrete(name = "Energy\nSource", breaks = c("CLRCBUS","NNRCBUS","PARCBUS","GERCBUS","SORCBUS","BMRCBUS"), labels=c("Coal","Natural Gas","Petroleum","Geothermal","Solar","Biomass"))+
+  ggtitle("Annual Residential Consumption by Energy Source ") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%Y", limit=c(as.Date("2000-01-01"),as.Date("2021-12-31")) ) +
+  theme(plot.title = element_text(hjust = 0.5,size = 12))
+TotalPlot2b
+
+```
+
+Summary statistics for the total 
+```{r warning=FALSE, echo=FALSE}
+total_tbl <- select_series(total_energy_consumption) %>%
+        pivot_wider(names_from = MSN, values_from = Value)  %>% filter(date >= as.Date("2000-01-01"))
+summaries <-data.frame(cbind(summary(total_tbl$TERCBUS),summary(total_tbl$FFRCBUS),summary(total_tbl$RERCBUS)))
+names(summaries) <- total_energy_consumption
+knitr::kable(summaries,caption="Summary Statistics")
+```
+
+
+```{r graphs}
+hist1 <-ggplot(total_tbl, aes(x = TERCBUS)) + geom_histogram(bins = 50) + ggtitle("Total Energy Consumption")+theme(plot.title = element_text(hjust = 0.5, size = 10))
+hist2 <-ggplot(total_tbl,aes(x = FFRCBUS))+geom_histogram(bins = 50)+ggtitle("Total Fossil Energy Consumption")+theme(plot.title = element_text(hjust = 0.5, size = 10))
+hist3 <-ggplot(total_tbl,aes(x = RERCBUS))+geom_histogram(bins=50)+ggtitle("Total Renewable Energy Consumption")+theme(plot.title = element_text(hjust = 0.5, size = 10))
+grid.arrange(hist1, hist2, hist3,ncol=3)
+```
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+energy_sources <- select_series(c(renewable_categories, fossil_fuels_categories))
+energy_sources <- energy_sources %>% filter(date >= as.Date("2000-01-01"))
+ggplot(energy_sources, aes(x=date, y=Value, fill=MSN)) + ggtitle("Fossil Fuels and Renewables in the Residential Sector") +
+  geom_bar(position="stack", stat="identity") + ylab("Trillion Btu") + xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  theme(axis.text.x=element_text()) +
+  theme(legend.justification=c(0,0), legend.position=c(0,0))
+
+```
+
+```{r energy sources}
+energy_sources <- energy_sources %>% pivot_wider(names_from = MSN, values_from = Value)  %>% filter(date >= as.Date("2000-01-01"))
+```
+
+## Univariate time series analysis for the Total Fossil Fuels Consumed by the Residential Sector (FFRCBUS).
+```{r Fossil Fuel}
+
+# Chart 3.1, Option 1 - same raw monthly data
+WideDataChart3<-select(WideData2ka,YearMonth,FFRCBUS)
+
+LongDataChart3<-melt(WideDataChart3,measure.vars = "FFRCBUS",variable.name = "EnergySource", value.name = 'TrillionBtu')
+
+FossilPlot3a<-  (ggplot(LongDataChart3, aes(x = YearMonth, y = TrillionBtu, fill = EnergySource)) + geom_area() +
+  scale_fill_discrete(name = "Energy\nSource", breaks = "FFRCBUS", labels="Fossil Fuel" )+
+  ggtitle("Monthly Residential Fossil Fuel Consumption") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  theme(plot.title = element_text(hjust = 0.5)))
+FossilPlot3a
+
+# Chart 3.1, Option 2 - raw monthly data - line chart
+
+FossilPlot3b<-  (ggplot(LongDataChart3, aes(x = YearMonth, y = TrillionBtu, col = EnergySource)) + geom_line(size = 1 ) + geom_smooth(method="lm")+
+  ggtitle("Monthly Residential Fossil Fuel Consumption") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  scale_colour_manual(name = "Energy\nSource", breaks = "FFRCBUS", labels="Fossil Fuel", values = "coral")+
+  theme(plot.title = element_text(hjust = 0.5)))
+FossilPlot3b
+##############################################################
+
+
+# Chart 3.2, Option 1, Spectrum
+LongDataChart3<-LongDataChart3[order(as.Date(LongDataChart3$YearMonth)),]
+FossilDataMlyts<-as.ts(LongDataChart3$TrillionBtu)
+Chart3.2aSpec<-spectrum(FossilDataMlyts)
+Chart3.2aData<-data.frame(Chart3.2aSpec$freq, Chart3.2aSpec$spec)
+colnames(Chart3.2aData)[1:2]<-c("freq","spec")
+
+# summary(Chart3.2aData)
+
+library(scales)
+FossilPlot3.2a<- ggplot(Chart3.2aData, aes(x = freq, y = spec)) + geom_line(aes(group=1), colour="blue", size = 1) +
+  ggtitle("Monthly Fossil Fuel Residential Consumption Periodogram") +
+  ylab("Spectrum") +xlab("Frequency") +
+  scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x)) +
+  theme(plot.title = element_text(hjust = 0.5))
+FossilPlot3.2a
+# Chart 3.3, Option 1
+FossilACF<- (ggAcf(LongDataChart3$TrillionBtu, lag.max=36)
+  + geom_segment(lineend = "butt", color = "red") 
+  + ggtitle("Fossil Fuels Residential Consumption Autocorrelation")
+  + theme(plot.title = element_text(hjust = 0.5)))
+FossilPACF<- (ggPacf(LongDataChart3$TrillionBtu, lag.max=36) 
+  + geom_segment(lineend = "butt", color = "red") 
+  + ggtitle("Fossil Fuels Residential Consumption Partial Autocorrelation")
+  + theme(plot.title = element_text(hjust = 0.5)))
+
+require(patchwork)
+
+FossilACF / FossilPACF
+
+## Check if there is a linear trend in the data
+time <- 1:length(FossilDataMlyts)
+lm_fit <- lm(FossilDataMlyts ~ time)
+summary(lm_fit)
+## The slope is not statistically significant, therefore no linear trend 
+##(Intercept) 555.0641    41.3349  13.428   <2e-16 ***
+## time         -0.3933     0.2725  -1.443     0.15    
+
+## the ACF shows seasonality
+max_freq <- Chart3.2aSpec$freq[which.max(Chart3.2aSpec$spec)]
+sprintf("Frequency f: %.5f", max_freq)
+period <- 1/max_freq
+sprintf("Periodicity of data: %.2f months", period)
+
+## differential to eliminate seasonality
+d.ts <- diff(FossilDataMlyts, lag = as.integer(ceiling(period)))
+
+## Augmented Dickey-Fuller Test
+adf.test(d.ts)
+
+FossilPlot3b / FossilPlot3.2a
+```
+
+
+```{r univariate }
+ts <- as.ts(total_tbl$FFRCBUS)
+ggplot(total_tbl, mapping=aes(x=date, y=FFRCBUS)) + ggtitle("Total Fossil Fuels Consumed by the Residential Sector")+
+  geom_line() +  xlab("") + geom_hline(yintercept=mean(total_tbl$FFRCBUS))
+
+
+## Check if there is a linear trend in the data
+time <- 1:length(ts)
+lm_fit <- lm(ts ~ time)
+summary(lm_fit)
+## The slope is not statistically significant, therefore no linear trend 
+##(Intercept) 555.0641    41.3349  13.428   <2e-16 ***
+## time         -0.3933     0.2725  -1.443     0.15    
+
+grid.arrange(ggAcf(ts, lag.max=36) + ggtitle("Total Fossil Fuels Autocorrelation"), 
+             ggPacf(ts, lag.max=36) + ggtitle("Total Fossil Fuels Partial Autocorrelation"))
+
+## the ACF shows seasonality
+spec_density <- spectrum(ts, main = "Spectral density for Total Fossil Fuels Monthly Consumption")
+max_freq <- spec_density$freq[which.max(spec_density$spec)]
+sprintf("Frequency f: %.5f", max_freq)
+period <- 1/max_freq
+sprintf("Periodicity of data: %.2f months", period)
+
+## differential to eliminate seasonality
+d.ts <- diff(ts, lag = as.integer(ceiling(period)))
+ 
+## the PACF shows that there coefficients statistically significant (outside the 95% confidence interval)
+grid.arrange(ggAcf(ts, lag.max=36) + ggtitle("Total Fossil Fuels Autocorrelation"), 
+             ggPacf(ts, lag.max=36) + ggtitle("Total Fossil Fuels Partial Autocorrelation"))
+
+## Augmented Dickey-Fuller Test
+adf.test(d.ts)
+
+```
+
+## Multivariate time series analisys
+
+We are analyzing the Natural Gas Consumed by the Residential Sector and Petroleum Consumed by the Residential Sector.
+```{r, Multivariate}
+WideDataChart4<-select(WideData2ka,YearMonth,NNRCBUS,PARCBUS)
+LongDataChart4<-melt(WideDataChart4,measure.vars = c("NNRCBUS","PARCBUS"),variable.name = "EnergySource", value.name = 'TrillionBtu')
+
+WideDataChart4Gas<-select(WideData2k,YearMonth,NNRCBUS)
+LongDataChart4Gas<-melt(WideDataChart4Gas,measure.vars = c("NNRCBUS"),variable.name = "EnergySource", value.name = 'TrillionBtu')
+
+WideDataChart4Petrol<-select(WideData2k,YearMonth,PARCBUS)
+LongDataChart4Petrol<-melt(WideDataChart4Petrol,measure.vars = c("PARCBUS"),variable.name = "EnergySource", value.name = 'TrillionBtu')
+
+
+#Graph4 Option 2
+Graph4Gas<-(ggplot(LongDataChart4Gas, aes(x = YearMonth, y = TrillionBtu, col = EnergySource)) + geom_line(size = 1) + geom_smooth(method="lm")+
+  ggtitle("Monthly Natural Gas Residential Consumption") +
+  ylab("Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  scale_colour_manual(name = "Energy\nSource", breaks = c("NNRCBUS"), labels=c("Natural Gas"), values = c("coral"))+
+  theme(plot.title = element_text(hjust = 0.5,size = 12)))
+
+Graph4Petrol<-(ggplot(LongDataChart4Petrol, aes(x = YearMonth, y = TrillionBtu, col = EnergySource)) + geom_line(size = 1) + geom_smooth(method="lm")+
+  ggtitle("Monthly Petroleum Residential Consumption") +
+  ylab("Trillion Btu") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  scale_colour_manual(name = "Energy\nSource", breaks = c("PARCBUS"), labels=c("Petroleum"), values = c("cadetblue"))+
+  theme(plot.title = element_text(hjust = 0.5,size = 12)))
+
+Graph4Gas / Graph4Petrol
+
+# Graph4Gas + Graph4Petrol
+# Graph 4 Option 3
+
+  Graph4GasPetrolb<-ggplot(LongDataChart4, aes(x = YearMonth, y = TrillionBtu, col = EnergySource)) + geom_line(size = 1) + geom_smooth(method="lm")+
+  ggtitle("Monthly Natural Gas and Petroleum Residential Consumption") +
+  ylab("Trillion Btu(Petrol), Btu(Gas)") +xlab("") +
+  scale_x_date(date_labels = "%b %Y", limit=c(as.Date("2000-01-01"),as.Date("2021-10-01")) ) +
+  scale_colour_manual(name = "Energy\nSource", breaks = c("NNRCBUS","PARCBUS"), labels=c("Natural Gas","Petroleum"), values = c("coral","cadetblue"))+
+  theme(plot.title = element_text(hjust = 0.5,size = 12))
+Graph4GasPetrolb
+
+```
+```{r Gas Pendrogram}
+# Graph 5.1 Gas Option 1
+  LongDataChart4Gas<-LongDataChart4Gas[order(as.Date(LongDataChart3$YearMonth)),]
+  GasDataMlyts<-as.ts(LongDataChart4Gas$TrillionBtu)
+  Chart5.1aSpec<-spectrum(GasDataMlyts)
+  Chart5.1aData<-data.frame(Chart5.1aSpec$freq, Chart5.1aSpec$spec)
+  colnames(Chart5.1aData)[1:2]<-c("freq","spec")
+  
+  # summary(Chart3.2aData)
+  
+  library(scales)
+  GasPlot5.1a<- (ggplot(Chart5.1aData, aes(x = freq, y = spec)) + geom_line(aes(group=1), colour="coral", size = 1) +
+    ggtitle("Monthly Natural Gas Residential Consumption Periodogram") +
+    ylab("Spectrum") +xlab("Frequency") +
+    scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x)) +
+    theme(plot.title = element_text(hjust = 0.5)))
+  
+  
+  
+# Graph 5.2 Petrol Option 1  
+  LongDataChart4Petrol<-LongDataChart4Petrol[order(as.Date(LongDataChart4Petrol$YearMonth)),]
+  PetrolDataMlyts<-as.ts(LongDataChart4Petrol$TrillionBtu)
+  Chart5.2aSpec<-spectrum(PetrolDataMlyts)
+  Chart5.2aData<-data.frame(Chart5.2aSpec$freq, Chart5.2aSpec$spec)
+  colnames(Chart5.2aData)[1:2]<-c("freq","spec")
+  
+  # summary(Chart3.2aData)
+  
+  library(scales)
+  GasPlot5.2a<- (ggplot(Chart5.2aData, aes(x = freq, y = spec)) + geom_line(aes(group=1), colour="blue", size = 1) +
+    ggtitle("Monthly Petroleum Residential Consumption Periodogram") +
+    ylab("Spectrum") +xlab("Frequency") +
+    scale_y_log10(breaks = trans_breaks("log10", function(x) 10^x)) +
+    theme(plot.title = element_text(hjust = 0.5)))
+  GasPlot5.1a/ GasPlot5.2a  
+```
+
+
+```{r Natural Gas}
+
+ggplot(energy_sources, mapping=aes(x=date, y=NNRCBUS)) + ggtitle("Natural Gas Consumed by the Residential Sector")+
+  geom_line() +  xlab("") + geom_hline(yintercept=mean(energy_sources$NNRCBUS))
+
+ts <- as.ts(energy_sources$NNRCBUS)
+
+## Check if there is a linear trend in the data
+time <- 1:length(ts)
+lm_fit <- lm(ts ~ time)
+summary(lm_fit)
+## The slope is not statistically significant, therefore no linear trend is determined
+
+## the PACF shows that there coefficients statistically significant (outside the 95% confidence interval)
+GasACF<-(ggAcf(ts, lag.max=36) + ggtitle("Natural Gas ACF") + geom_segment(lineend = "butt", color = "coral") + theme(plot.title = element_text(hjust = 0.5)))
+GasPACF<-(ggPacf(ts, lag.max=36) + ggtitle("Natural Gas PACF")+ geom_segment(lineend = "butt", color = "coral") + theme(plot.title = element_text(hjust = 0.5)))
+
+require(patchwork)
+GasACF / GasPACF
+## the ACF shows seasonality
+spec_density <- spectrum(ts, main = "Spectral density: Natural Gas Consumed by the Residential Sector")
+max_freq <- spec_density$freq[which.max(spec_density$spec)]
+sprintf("Frequency f: %.5f", max_freq)
+period <- as.integer(ceiling(1/max_freq))
+sprintf("Periodicity of data: %.2f months", period)
+
+## differential to eliminate seasonality
+d.ts <- diff(ts, lag = period)
+ 
+## the PACF shows that there coefficients statistically significant (outside the 95% confidence interval)
+
+DSGasACF<-(ggAcf(d.ts, lag.max=36) + ggtitle("De-Seasonalised Natural Gas ACF") + geom_segment(lineend = "butt", color = "coral") + theme(plot.title = element_text(hjust = 0.5)))
+DSGasPACF<-(ggPacf(d.ts, lag.max=36) + ggtitle("De-Seasonalised Natural Gas PACF")+ geom_segment(lineend = "butt", color = "coral") + theme(plot.title = element_text(hjust = 0.5)))
+
+require(patchwork)
+DSGasACF / DSGasPACF
+## Augmented Dickey-Fuller Test
+adf.test(d.ts)
+
+fossil_mvrt <- tibble(NNRCBUS = d.ts)
+```
+
+
+```{r Petroleum}
+
+ggplot(energy_sources, mapping=aes(x=date, y=PARCBUS)) + ggtitle("Petroleum Consumed by the Residential Sector")+
+  geom_line() +  xlab("") + geom_hline(yintercept=mean(energy_sources$PARCBUS))
+
+ts <- as.ts(energy_sources$PARCBUS)
+
+## Check if there is a linear trend in the data
+time <- 1:length(ts)
+lm_fit <- lm(ts ~ time)
+summary(lm_fit)
+
+## eliminate the linear trend as both Intercept and time are statistically significant
+ts <- ts - lm_fit$fitted.values
+
+## the PACF shows that there coefficients statistically significant (outside the 95% confidence interval)
+PetrolACF<-(ggAcf(ts, lag.max=36) + ggtitle("Petroleum ACF") + geom_segment(lineend = "butt", color = "red") + theme(plot.title = element_text(hjust = 0.5)))
+PetrolPACF<-(ggPacf(ts, lag.max=36) + ggtitle("Petroleum PACF")+ geom_segment(lineend = "butt", color = "red") + theme(plot.title = element_text(hjust = 0.5)))
+
+require(patchwork)
+PetrolACF / PetrolPACF
+## the ACF shows seasonality
+spec_density <- spectrum(ts, main = "Spectral density for Petroleum")
+max_freq <- spec_density$freq[which.max(spec_density$spec)]
+sprintf("Frequency f: %.5f", max_freq)
+period <- as.integer(ceiling(1/max_freq))
+sprintf("Periodicity of data: %.2f months", period)
+
+## differential to eliminate seasonality
+d.ts <- diff(ts, lag = period)
+ 
+## the PACF shows that there coefficients statistically significant (outside the 95% confidence interval)
+DSPetrolACF<-(ggAcf(d.ts, lag.max=36) + ggtitle("De-Seasonalised Petroleum ACF") + geom_segment(lineend = "butt", color = "red") + theme(plot.title = element_text(hjust = 0.5)))
+DSPetrolPACF<-(ggPacf(d.ts, lag.max=36) + ggtitle("De-Seasonalised Petroleum PACF")+ geom_segment(lineend = "butt", color = "red") + theme(plot.title = element_text(hjust = 0.5)))
+
+require(patchwork)
+DSPetrolACF / DSPetrolPACF
+## Augmented Dickey-Fuller Test
+adf.test(d.ts)
+fossil_mvrt["PARCBUS"] <- d.ts
+
+(DSGasACF + DSPetrolACF)/ (DSGasPACF + DSPetrolPACF)
+```
+
+
+
+Now that we have both stationary time series in the fossil_mvrt tibble, we can calculate the covariance matrix and the correlation matrix.
+
+```{r}
+knitr::kable(cov(fossil_mvrt), caption="Covariance Matrix")
+knitr::kable(cor(fossil_mvrt),caption="Correlation Matrix")
+ggCcf(fossil_mvrt$NNRCBUS, fossil_mvrt$PARCBUS) + ggtitle("Petroleum and Natural Gas CCF") + geom_segment(lineend = "butt", color = "red", size = 1) + theme(plot.title = element_text(hjust = 0.5,size = 12))
+
+```
+
+```{r}
+MTSplot(fossil_mvrt)
+fossilccm<-ccm(fossil_mvrt, lag=12)
+fossilpvalue<-data.frame(1:12,fossilccm$pvalue)
+colnames(fossilpvalue)[1:2]<-c("lag","pvalue")
+ggplot(fossilpvalue, aes(x = lag, y =pvalue)) + geom_point(size = 3, shape=4, color="blue")+ggtitle("Fossil CCM p-value") + theme(plot.title = element_text(hjust = 0.5,size = 15))
+
+mq(fossil_mvrt,lag=12)
+```
+

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.layout.AnchorPane?>
+
+<AnchorPane prefHeight="310.0" prefWidth="431.0" xmlns="http://javafx.com/javafx/8.0.121" xmlns:fx="http://javafx.com/fxml/1" fx:controller="controllers.IngredientController">
+    <ListView fx:id="ingredients" onMouseClicked="#changeAmount" prefHeight="310.0" prefWidth="289.0" />
+    <Button fx:id="add" layoutX="313.0" layoutY="155.0" mnemonicParsing="false" onAction="#addIngredient" prefHeight="26.0" prefWidth="71.0" text="Add" />
+    <Button fx:id="subtract" layoutX="314.0" layoutY="200.0" mnemonicParsing="false" onAction="#subtractIngredient" prefHeight="26.0" prefWidth="71.0" text="Subtract" />
+    <Button fx:id="confirm" layoutX="315.0" layoutY="246.0" mnemonicParsing="false" onAction="#confirmIngredient" text="Confirm" />
+    <Label fx:id="amount" layoutX="340.0" layoutY="89.0" text="Label" />
+    <Label layoutX="309.0" layoutY="45.0" prefHeight="26.0" prefWidth="79.0" text="Amount" textAlignment="CENTER" />
+</AnchorPane>

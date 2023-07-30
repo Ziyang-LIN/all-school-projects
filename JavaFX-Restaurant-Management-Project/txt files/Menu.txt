@@ -1,0 +1,5 @@
+Appetizers: Mozzarella Sticks $4.99, Bacon Wrapped Callops $6.99, Baked Brie $8.99, Baked Brie (Figs and Walnuts) $7.99, Bite Sized Blooming Onions $4.99
+Soups and Salads: Taco Salad $6.99, Spicy Tuna Tartare Salad $7.99, Santa Fe Chicken Salad $7.99, Chicken Soup with Wild Rice $9.99, French Onion Soup $9.99
+Entrees: BBQ Ribs $16.99, Sticky Baked Chicken Wings $12.99, Paleo Ramen $13.99, Hawaiian Fried Rice $15.99, Grilled Shrimp $12.99
+Dessert: Key Lime Pie $13.99, S’mores Poke Brownies $9.99, Billy Miner Pie $12.99, Cherry Lemon Basil Clafoutis $11.99, Butter Toffee-Pecan Layer Cake $11.99
+Beverages: Apple Juice $3.99, Orange Juice $3.99, Strawberry Juice $3.99, Pepsi $3.99, Lemonade $3.99

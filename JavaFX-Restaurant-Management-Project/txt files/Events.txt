@@ -1,0 +1,9 @@
+Orange;90
+Ice;100
+Lime;70
+Tomato;20
+Onion;50
+Lettuce;30
+Cheese;
+Lemon;10
+Coconut;40

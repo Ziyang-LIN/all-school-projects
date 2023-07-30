@@ -1,0 +1,25 @@
+Mozzarella Sticks $4.99: Cheese, PizzaSauce
+Bacon Wrapped Callops $6.99: Scallop, Bacon
+Baked Brie $8.99: Honey
+Baked Brie (Figs and Walnuts) $7.99: Fig, Jam, Walnut
+Bite Sized Blooming Onions $4.99: Onion
+Taco Salad $6.99: Lime, Oil, Honey, Tomato
+Spicy Tuna Tartare Salad $7.99: Mayonnaise, SoySauce, Tuna
+Santa Fe Chicken Salad $7.99: Lime, Corn, ChickenBreast
+Chicken Soup with Wild Rice $9.99: Mushroom, Rice, ChickenBreast
+French Onion Soup $9.99: Cheese, Bread, Onion
+BBQ Ribs $16.99: Rib, BarbecueSauce
+Sticky Baked Chicken Wings $12.99: ChickenWing, SoySauce, Lime
+Paleo Ramen $13.99: Noodle, Mushroom, Egg
+Hawaiian Fried Rice $15.99: SoySauce, Rice, Egg
+Grilled Shrimp $12.99: Lemon, Shrimp
+Key Lime Pie $13.99: Lime, Sugar
+S’mores Poke Brownies $9.99: Sugar, Marshmallow
+Billy Miner Pie $12.99: Sugar, Oreo
+Cherry Lemon Basil Clafoutis $11.99: Cherry, Lemon
+Butter Toffee-Pecan Layer Cake $11.99: Rum, Sugar
+Apple Juice $3.99: Apple, Ice
+Orange Juice $3.99: Orange, Ice
+Strawberry Juice $3.99: Strawberry, Ice
+Pepsi $3.99: Ice
+Lemonade $3.99: Lemon, Ice

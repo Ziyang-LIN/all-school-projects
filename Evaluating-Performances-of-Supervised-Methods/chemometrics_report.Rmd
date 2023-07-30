@@ -1,0 +1,305 @@
+---
+title: "Supervised Learning Approach on Optimizing Hydrocracking Yield for Profitable and Sustainable Production"
+author: "Ziyang Lin"
+abstract: "This reports outline the approaches taken to select a best-performing supervised learning models that study the hydrocracking process to determine the most influential control variables of the reactor on the yield of effluent hydrocarbon mixture in the target range of densities, and to predict the yield given control variables. Higher target range yields are desired to attract a higher profit on sale and also reduce production waste. The results of these models are interpreted in terms of their identified influential control variables, and quantify their effects in improving the target range yield. In particular, we compared linear regression, lasso regression, random forest regression, and regression tree boosting on the root mean squared error on the test set and discovered lasso regression to be the best performing model. The models all have relatively low records of RMSE, and we saw that catalyst type, reactor temperature, reaction time, and feed hydrocarbon mixtures on the same and nearby intervals as the target range all have a positive impact on target range yield."
+fontsize: 11pt
+output: 
+  bookdown::pdf_document2
+toc: FALSE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+Hydrocracking is an industrial process to break down hydrocarbons into smaller molecules, which is used to increase the proportion of extracted hydrocarbons of shorter molecules. These molecules attract a higher profit on sale as they are typically more useful to consumers. The most useful and valuable hydrocarbons are those within a density in a specific, intermediate range known as the target range. 
+
+The effluent hydrocarbon mixture composition is controlled by adjusting the temperature of the reactor, the catalyst used, and the time for which the hydrocarbon mixture is within the reactor. It also depends on the composition of the feed mixture. In this report, we will take a data-driven approach to understand control variables that are most influential on the effluent hydrocarbon mixture yield of the target range and use them to make predictions. This initiative will not only increase profitability, but also make the process more sustainable as it minimizes reactor output waste.
+
+We will apply different supervised learning methods to build models that explain the target range yield and the control variables. In particular, we will look into both parametric and non-parametric approaches and examine model performance of each on the test set using the same metric. We will start from exploratory analysis that aims to investigate the distribution of the target range yield, and its correlation with the control variables. We then use these preliminary findings to choose suitable supervised learning models. We aim to determine the most influential factors among these variables, and also select a best-performing model to make predictions and use the fitted model to provide advices for the production team.
+
+## Exploratory Analysis
+
+The data set used in this study contains 497 observations of 47 variables. The observations are daily records from 2020-10-15 to 2022-02-23 for both the control variables, and the composition of effluent hydrocarbon mixture yield. There are two types of control variables, 3 of them represent the reactor settings which includes the type of catalyst used as a categorical varible of 3 levels, the reactor temperature in degrees Fahrenheit, and the reactor residence time of the mixture in hours. The other type is the composition of the feed hydrocarbon mixtures, where the proportion of the overall mass in each of 20 density intervals is given as 20 individual numerical variables. The first interval represents the longest, heaviest molecules and the last represents the shortest, lightest molecules. The remaining 20 variables are the proportion of the overall mass in the 20 density intervals for effluent hydrocarbon mixture composition. We are only interested in the target range yield, which is the combined yield of interval 13, 14, and 15 for effluent composition.
+
+The data set is complete and clean at the first glimpse without any missing observations, so no pre-processing is needed except for calculating the combined yield for the three target intervals. First we consider the empirical distribution of the combined target range yield (Figure 1), we see that the yield roughly follows a Gaussian distribution without obvious skewness and outlying observations. This suggests that methods assuming a Gaussian response such as linear regression may be suitable.
+
+```{r, message=F, warning=F, echo=F, fig.cap="Empirical Distribution of Sum of Target Range Densities", out.width="60%", fig.align='center', fig.pos="!h"}
+# Data preparation and exploratory analysis
+library(tidyverse) # for dplyr tibble operations and ggplot
+mass_fractions <- read.csv("~/Desktop/mass_fractions.csv") # read the csv file
+
+mass_fractions <- mass_fractions %>%
+  mutate(date=as.Date(date), catalyst=as.factor(catalyst)) %>% # change these two column types
+  mutate(response=out_fraction_13+out_fraction_14+out_fraction_15) # get the response by summing up the 3 density ranges
+
+## visualize the distribution of the response (sum of out_fraction_13 to 15)
+ggplot(mass_fractions) +
+  geom_histogram(aes(response), bins = 20, fill="orange", col="red") + # generate histogram
+  labs(x="Mass Fraction of Sum of Target Range",
+       y="Frequency") + # set up labels
+  theme_minimal()
+```
+
+In fact, when we consider the relationship between reactor setting variables and combined yield, we see there is a distinctive linear pattern with positive correlation (Figure 2). There is also a visually distinctive difference in means for different catalyst types (Figure 4, Appendix). This further justifies the adequacies of linear models. We also have reasons to believe that the feed composition in the corresponding intervals (13, 14, and 15) would have correlation with the combined yield of the target range (Figure 2). These findings would give us a good starting point for model choosing and variable selections.
+
+```{r, message=F, warning=F, echo=F, fig.cap="Some Control Variables versus Combined Yield", fig.align='center', fig.height=3.5, fig.pos="!h"}
+plot1 <- ggplot(mass_fractions, aes(y=response, x=temperature)) + 
+  geom_line(col="orange") + # generate line graph
+  geom_smooth(method='lm', formula=y~x) + 
+  labs(title="Temperature vs Yield",
+       x="Reactor Temperature (in Fahrenheit)",
+       y="Mass Fraction of Combined Yield") + # set up labels
+  theme_minimal()
+
+## visualize the correlation between through_time and response plus linear regression line
+plot2 <- ggplot(mass_fractions, aes(y=response, x=through_time)) + 
+  geom_line(col="orange") + # generate line graph
+  geom_smooth(method='lm', formula=y~x) + 
+  labs(title="Reaction Time vs Yield",
+       x="Reaction Time",
+       y="Mass Fraction of Combined Yield") + # set up labels
+  theme_minimal()
+
+mass_fractions <-  mass_fractions %>% # change these two column types
+  mutate(feed_13_to_15=feed_fraction_13+feed_fraction_14+feed_fraction_15)
+plot3 <- ggplot(mass_fractions, aes(y=response, x=feed_13_to_15)) + 
+  geom_line(col="orange") + # generate line graph
+  geom_smooth(method='lm', formula=y~x) + 
+  labs(title="Feed vs Yield", 
+       x="Target Range Total Feed",
+       y="Target Range Total Yield") + # set up labels
+  theme_minimal()
+
+gridExtra::grid.arrange(plot1, plot2, plot3, ncol=3)
+
+```
+
+# Methods
+
+## Parametric Approach
+
+Before fitting models, we should first divide the data into training and test set for model fitting and out-of-sample prediction errors to compare models. We will take $70\%$ of the observations as training data and the remaining as testing data. Since our response is a continuous variable, we should use regression methods for model fitting.
+
+```{r, message=F, warning=F, echo=F}
+## prepare the data to get rid of all other useless out_fraction columns for modelling
+mass_fractions_mod <- mass_fractions %>%
+  select(catalyst, temperature, through_time, matches("feed_fraction_"), response)
+## train test separation according to a 70:30 ratio
+set.seed(123456) # set seed for sample reproducibility
+train_fractions <- sample_frac(mass_fractions_mod, 0.7)
+test_fractions <- mass_fractions_mod %>% anti_join(train_fractions)
+```
+
+As the exploratory findings suggest, a linear model or its variant may be suitable for this data set. We will first consider the simple linear regression as a parametric approach to fit a model on the control variables to model the conditional mean of the combined yield. The model will take the form $Y_i|\boldsymbol{X_i}=\boldsymbol{X_i}\boldsymbol{\beta}+\epsilon_i$ where $\epsilon_i\sim N(0, \sigma^2)$ such that $\sigma^2$ is constant across all observations. This model is fitted by minimizing the loss function of residual sum of squares, and it will produce $\boldsymbol{\beta}$ coefficient estimates that allow us to quantify the effect of each control varible and whether it differs from $0$.
+
+However, fitting a full linear model may also include unimportant predictor, we will therefore apply two methods to potentially obtain a model that contains most important variables and also generalize to new data well. We will use stepwise selection using the AIC criterion, which is a likelihood-based statistic to trade-off model complexity and goodness-of-fit, to get a model with only important predictors. We will also introduce a Lasso panelty term to the full model, so that the modified loss function is $\ell_{\text{lasso}}(\beta)=\sum_{i=1}^n(y_i-X_i\beta)^2+\lambda\sum_{j=1}^p |\beta_j|$ where the parameter $\lambda$ that specifies the strength of penalty will be tuned using cross-validation.
+
+## Non-Parametric Approach
+
+We will also explore how non-parametric approaches perform for our problem by considering tree-based methods. In particular, we will to fit a random forest regression model and a boosting regression tree model to explain the variability of the combined yield by the control variables and generate out-of-sample predictions.
+
+Unlike linear regression models, trees do not take the approach of estimating a set of parameters, but instead it is constructed by successive binary splits in predictor space. A regression tree estimate the model function by $\hat f(x)=\sum_{m=1}^M\hat c_m I(x\in R_m)$ where $R_1,\cdots, R_M$ are regions in predictor space, and $c_m$ is a constant for the predicted response of all observations in any region $R_m$. The regression tree is also optimized using the residual sums of squares, but unlike linear regression, it predicts a new data not by the estimated coefficients, but by the predictor space region that the new observation falls into.
+
+Trees are high-variance models in general, but we can use bagging to draw some number $B$ of bootstrap samples from the training data, and fit a tree to each of them, then aggregate the prediction by taking the mean of predictions from all trees. Random forest is a variation to this method where we use a random sample of $m=\sqrt p$ predictors to determine each split where $p$ is the total number of predictors. This way the variance of the model can be largely reduced, and random forest can also be interpretable when considering the reduction in $MSE$ when a split uses a certain variable. Boosting is also a technique to improve performance of tree models by building trees sequentially such that one depends on the other instead of independent samples as used with bagging. 
+
+We will first fit a random forest regression model for combined yield using all available control variables, adn evaluate its performance and interpet the predictors' effects. Finally, we apply the boosting algorithm to see if this gives an even better result. 
+
+Since we are comparing models of different constructions, it is important to set up a uniform metric for comparison. As these are all regression methods, we will compare them by the square-rooted mean squared error $RMSE=\sqrt{\sum_{i=1}^n(y_i-\hat y_i)^2/n}$ on the out-of-sample test set which contains $30\%$ of all observations. We will also compare the selected useful predictors by each method and use these results to drive the advices to the production team.
+
+# Results
+
+We start by fitting a linear regression model with combined yield being the Gaussian response, and all control variables except feed fraction at interval 20 as the predictors. We get rid of one interval fraction because we know the mass fractions of 20 intervals sum to $1$ so we only have a degree of freedom of $19$. The AIC-selected model only excludes a few feed fraction variables but according to the $t$-statistic of each coefficient estimate, it identifies some control variables to be more important (Table 1).
+
+```{r, message=F, warning=F, echo=F}
+## linear regression
+set.seed(123456) # set seed for reproducibility
+lm_fit <- lm(response~.-feed_fraction_20, data=train_fractions) # simple linear regression
+formula <- as.formula(step(lm_fit, k=log(nrow(train_fractions)), trace=0)) # BIC stepwise selection
+lm_chosen <- lm(formula, data=train_fractions) # refit the chosen model
+lm_coef <- data.frame(cbind(summary(lm_chosen)$coef, confint(lm_chosen)))
+lm_coef <- lm_coef[order(lm_coef$Pr...t..),]
+names(lm_coef) <- c("Estimate", "Std Error", "t-Stat", 
+                    "p-value", "Lower 95% CI", "Upper 95% CI")
+pred <- predict(lm_chosen, newdata = test_fractions) # generate prediction on test set
+lm_rmse <- sqrt(mean((pred-test_fractions$response)^2)) # calculate metric RMSE
+knitr::kable(round(cbind(lm_coef[1:8,1:3], lm_coef[1:8,5:6]), 4), 
+             caption="Predictors with Strongest Effects")
+```
+
+We see that the feed fraction at interval 12, 13, 14, and 15 are very influential on the target range yield. We also see that both reactor temperature and reaction time have positive effect on the yield, and that catalyst type 1 and 2 both have higher expected yield than catalyst 0 when holding other factors fixed. In general, this model has a good fit with $R^2=0.8211$, and the $RMSE$ on the test set is reported at $0.0062$.
+
+Now, we can take the variable selection step further by including a penalty term to perform a Lasso regression where the strength of panelty $\lambda$ is tuned by cross-validation within the training set. With a grid of 100 $\lambda$ candidates evenly splitted from $\exp(-11)$ to $\exp(-4)$ based on the shrinkage plot (Figure 4), the cross-validation outputs $\lambda_{\min}\approx 0.000113$ as the one that produces the lowest $RMSE$ on the test set at $0.0061$, which is slightly lower than linear regression. The Lasso regression gets rid of feed fraction at interval 4, 6, 17, and 18, which is comparable with the AIC-selected linear regression model. In general, we see that parametric regression models with Gaussian response perform well for our data set in terms of out-of-sample errors.
+
+```{r, message=F, warning=F, echo=F, fig.cap="Shrinkage Plot of Lasso Regression", fig.width=4.5, fig.height=3.5}
+## lasso regression
+library(glmnet) # load the lasso regression fitting function library
+train_predictors <- model.matrix(as.formula(lm_fit), train_fractions)
+test_predictors <- model.matrix(as.formula(lm_fit), test_fractions) 
+response <- train_fractions$response # extract response
+
+set.seed(123456) # set seed for reproducibility
+fit_lasso <- glmnet(train_predictors, response, alpha = 1) # fit a lasso on the train set
+
+grid <- exp(seq(-4, -11, length.out = 100)) # generate lambda grid to choose for CV
+lasso_cv <- cv.glmnet(x=train_predictors, y=response, alpha=1, lambda=grid) # run CV with lasso
+
+lambda_min <- lasso_cv$lambda.min # extract the optimum lambda
+lasso_pred <- predict(lasso_cv, s = lasso_cv$lambda.min, newx = test_predictors) # get lasso predictions
+lasso_rmse <- sqrt(mean((lasso_pred - test_fractions$response)^2)) # compute RMSE
+
+plot(fit_lasso, xvar = "lambda")
+```
+
+We next fit a random forest regression model as a non-parametric approach to our problem. With this method, each tree in the bootstrap aggregation only select a subset of $7$ predictors from all $23$ predictors. The test set $RMSE$ is $0.0093$ for random forest which shows a drop from the parametric regression model performance. We can also see that the random forest captures similar feed fraction intervals, catalyst, and reaction time as important predictor, but the effect of temperature is not as strong as the parametric models.
+
+```{r, message=F, warning=F, echo=F}
+library(randomForest) # package for function that fits a random forest
+set.seed(123456) # set seed for reproducibility
+rf_fit <- randomForest(
+  response ~ . - feed_fraction_20, 
+  data = train_fractions, 
+  mtry = 7, # m = max(floor(p/3), 1) = 7
+  importance = TRUE)
+
+rf_pred <- predict(object = rf_fit, newdata = test_fractions, type = "response") 
+rf_rmse <- sqrt(mean((rf_pred - test_fractions$response)^2)) # compute RMSE
+```
+
+We finally implement a regression tree boosting model with cross-validation to select the optimal number of trees in the model. Boosting algorithm have three hyperparameters to tune, and they are a shrinkage parameter $\lambda$, the maximum depth of any one tree $d$, and $B$ the total number of trees. We manually specify $\lambda\in\{0.01, 0.05, 0.1\}$ and $d\in\{3,5\}$, and then use cross-validation to tune $B$, which gives the below hyperparameters and test set $RMSE$ (Table 2). In general, these models perform comparably well, and the best model has $RMSE=0.00685$ which is still lower than the Lasso regression
+
+```{r, message=F, warning=F, echo=F}
+library(gbm)
+set.seed(123456)
+bt_fit_cv1 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.01,
+  interaction.depth = 3, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter1 <- gbm.perf(bt_fit_cv1, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred1 <- predict(bt_fit_cv1, newdata = test_fractions, 
+                   n.trees = best_iter1, type = "response") # predict on test set
+bt_rmse1 <- sqrt(mean((bt_pred1 - test_fractions$response)^2)) # compute RMSE
+
+bt_fit_cv2 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.01,
+  interaction.depth = 5, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter2 <- gbm.perf(bt_fit_cv2, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred2 <- predict(bt_fit_cv2, newdata = test_fractions, 
+                   n.trees = best_iter2, type = "response") # predict on test set
+bt_rmse2 <- sqrt(mean((bt_pred2 - test_fractions$response)^2)) # compute RMSE
+
+bt_fit_cv3 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.05,
+  interaction.depth = 3, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter3 <- gbm.perf(bt_fit_cv3, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred3 <- predict(bt_fit_cv3, newdata = test_fractions, 
+                   n.trees = best_iter3, type = "response") # predict on test set
+bt_rmse3 <- sqrt(mean((bt_pred3 - test_fractions$response)^2)) # compute RMSE
+
+bt_fit_cv4 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.05,
+  interaction.depth = 5, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter4 <- gbm.perf(bt_fit_cv4, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred4 <- predict(bt_fit_cv4, newdata = test_fractions, 
+                   n.trees = best_iter4, type = "response") # predict on test set
+bt_rmse4 <- sqrt(mean((bt_pred4 - test_fractions$response)^2)) # compute RMSE
+
+bt_fit_cv5 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.1,
+  interaction.depth = 3, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter5 <- gbm.perf(bt_fit_cv5, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred5 <- predict(bt_fit_cv5, newdata = test_fractions, 
+                   n.trees = best_iter5, type = "response") # predict on test set
+bt_rmse5 <- sqrt(mean((bt_pred5 - test_fractions$response)^2)) # compute RMSE
+
+bt_fit_cv6 <- gbm(
+  formula = response ~ . - feed_fraction_20,
+  data = train_fractions,
+  distribution = "gaussian", 
+  n.trees = 1000, 
+  shrinkage = 0.1,
+  interaction.depth = 5, 
+  cv.folds = 10) # fit a boosting regression tree model
+best_iter6 <- gbm.perf(bt_fit_cv6, method = "cv", plot.it = FALSE) # extract optimal B
+bt_pred6 <- predict(bt_fit_cv6, newdata = test_fractions, 
+                   n.trees = best_iter6, type = "response") # predict on test set
+bt_rmse6 <- sqrt(mean((bt_pred6 - test_fractions$response)^2)) # compute RMSE
+
+bt_res <- data.frame(lambda=c(0.01, 0.01, 0.05, 0.05, 0.1, 0.1), 
+                     d=c(3, 5, 3, 5, 3, 5), 
+                     B=c(best_iter1, best_iter2, best_iter3, best_iter4, 
+                         best_iter5, best_iter6),
+                     RMSE=c(bt_rmse1, bt_rmse2, bt_rmse3, 
+                            bt_rmse4, bt_rmse5, bt_rmse6)) # construct boosting result table
+knitr::kable(bt_res, caption="Boosting Tuning Parameters and Results")
+```
+
+Now we can put all $RMSE$ from the four models together with the best-performing boosting tree model, and observe that Lasso regression has the lowest record (Table 3).
+
+```{r, message=F, warning=F, echo=F}
+## finally, construct model comparison table
+rmse <- c(lm_rmse, lasso_rmse, rf_rmse, bt_rmse3)
+models <- c("Linear Regression", "Lasso Regression", "Random Forest", "Tree Boosting")
+res_models <- data.frame("Model"=models, "RMSE"=round(rmse, 4))
+knitr::kable(res_models, caption="RMSE for Model Comparison")
+```
+
+# Summary
+
+## Conclusion
+
+From the above model fitting results, we see that all four models are able to capture similar set of influential control variables and generalize well to unseen test set data. These would give us confidence in concluding the important factors that affect the target range yield of effluent hydrocarbon mixtures, and in predicting yields given these control variables for future data.
+
+In particular, we found that parametric approaches performs better than non-parametric approaches in terms of out-of-sample errors, among which Lasso regression holds the top performance. From linear regression and random forest results, we see that the type of catalyst used, reactor temperature in degrees Fahrenheit, reaction time, and feed hydrocarbon mixtures on the same and nearby intervals as the target range are all influential variables to target range yield. In particular, they all exhibit positive correlation with the yield, which means increasing any of them will increase the expected mean combined target range yield of effluent hydrocarbon mixtures.
+
+## Limitations
+
+Besides useful insights, there are still drawbacks in our approaches and some future steps to take to provide more reliable results. First, since the feed fractions in 20 intervals sum to 1, increases in some intervals will cause decreases in others, which means we may have multicollinearity in these variables. When linear regression models contain multicollinear variables, coefficient estiamtes could have the wrong sign and larger variance. This could potentially impact the model's predictive ability. 
+
+When we do cross-validation with boosting, we only compare six of the hyperparameter combinations, but their dependence could be more complex, and we might have avoided a better model. Additionally, the $RMSE$ metric mainly concerns the prediction error, but does not take variance of predictions into account. We could also integrate the variance of predictions as another metric so we could select a model with high accuracy but also low variability. Finally, except for the four models, we could have a wide range of other supervised learning methods to consider such as regression with splines, and principal component analysis. 
+
+
+# Appendix
+
+```{r, message=F, warning=F, echo=F, fig.cap="Catalyst Type versus Combined Yield", fig.width=4, fig.height=3}
+ggplot(mass_fractions, aes(y=response, x=catalyst)) + 
+  geom_boxplot(fill="orange", col="red") + # generate boxplot
+  labs(x="Catalyst Type",
+       y="Mass Fraction of Sum of Target Range") + # set up labels
+  theme_minimal()
+```
+
+```{r, message=F, warning=F, echo=F, fig.cap="Diagnostic Plots of AIC-Selected Linear Regression Model", fig.width=6, fig.height=3.5}
+par(mfrow=c(1, 2))
+plot(lm_chosen, c(1, 2)) # diagnostic plots 
+```
+
+```{r, message=F, warning=F, echo=F, fig.cap="Variable Importance Plot for Random Forest", fig.width=8, fig.height=4}
+varImpPlot(rf_fit, n.var=8, main=NA)
+```

@@ -1,0 +1,97 @@
+---
+title: "Assessment 1"
+subtitle: "Exploratory Data Analysis and Visualization"
+author: "Ziyang Lin"
+date: "Jan 31, 2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(naniar)
+library(mice)
+library(dplyr)
+```
+
+## Question 1
+
+**(a).** As $n$ increases (i.e. simulate more data points from the proposed distribution), we would have more data to compare with the emprirical distribution of our data set, and any unusual visual pattern in the Q-Q plot can be easier to detect. Ideally, we would like $n$ to at least equal to $m$ so that each quantile can be matched in the Q-Q plot. In general, the higher $n$ is, the more confident our conclusion would be regarding the comparison of the two distributions.
+
+**(b).** In this Q-Q plot, we see on the points align with the straight line only around the centre. There are two main observations. In the lower end, the points deviate from the straight line towards the bottom, while in the upper end, the points deviate from the straight line towards the top. If we only observe the first observation, we can say the data appears to be left-skewed. Similarly, if we only observe the second, we can say the data appears to be right-skewed. However, in this case we see heavy-tails on both ends, this means we have positive excess kurtosis in the data as kurtosis is the measure of tailness of the distribution. There is another possibility that the data is actually bimodal to have this Q-Q plot.
+
+## Question 2
+
+We first load the data set into R environment and see the below first few rows.
+
+```{r}
+travels <- read.csv("~/Desktop/travel-times.csv")
+knitr::kable(head(travels), caption="First Few Rows of Dataset")
+```
+
+**(a).** From the above table, we see there are $7$ variables for each observation.
+
+- `Date`: it can be considered *nominal*, *ordinal*, or *interval* type. If the context states that only equality of multiple `Date` can be compared but not the difference, then it is *nominal*. If we consider the time order in it (as it is a time indicator), then it can be *ordinal*. If the difference between any two `Date` values are also meaningful in the context, this would make it an *interval* type.
+- `DayOfWeek`: categorical variable with $5$ levels, so a *nominal* type. If we consider the order (Monday as earliest, and Friday as latest), then it can also be *ordinal* type.
+- `GoingTo`: categorical variable with $2$ levels (i.e. binary variable), so a *nominal* type.
+- `Distance`: the "zero" value of `Distance` is meaningful, and that it can support all mathematical operations, this makes it a *ratio* type.
+- `MaxSpeed`: same as `Distance`, a *ratio* type.
+- `AvgSpeed`: same as above, a *ratio* type.
+- `TotalTime`: same as above, a *ratio* type.
+
+**(b).** If `AvgSpeed` is not MNAR, then it is either MAR or MCAR. We can plot `AvgSpeed` against either or both of the two time variable to see whether its missingness is conditioned on these variables.
+
+We first consider the missing locations in all observations. We see that the distribution of missing data looks random and evenly spread across all observations.
+
+```{r}
+vis_miss(travels)
+```
+
+Next we condition on `DayOfWeek`. We see that all five days have some missing records. Though Monday and Friday appear to have less, but these two days also have fewer records, so overall the difference is negligible, so we can conclude that the missingness of `AvgSpeed` does not depend on `DayOfWeek`. A similar plot can be generated with `Date` (treating it as categorical), and we also detect no unusual pattern. This means we can categorize the missingness as MCAR.
+
+```{r}
+ggplot(travels, 
+       aes(x=AvgSpeed, y=MaxSpeed)) +
+  geom_miss_point() +
+  facet_wrap(~DayOfWeek)
+```
+
+**(c).** We have determined that `AvgSpeed` is MCAR, this means both mean imputation and regression imputation will produce unbiased mean estimate. We will deploy regression imputation here and see below graph for the imputed data (red dots.)
+
+```{r}
+travels2 <- travels[,!names(travels) %in% c("Date")]
+impTravels <- mice(travels2, seed=2, method="norm.predict", m=10, maxit=5, print=FALSE)
+xyplot(impTravels, AvgSpeed~MaxSpeed)
+```
+
+We then modify the original data set to include these imputed data, and consider the below summary table (without `Date`), we see no data is missing anymore.
+
+```{r}
+travels_lr <- complete(impTravels)
+travels_lr$Date <- travels$Date
+knitr::kable(summary(travels_lr)[,1:6], caption="Summary After Imputation")
+```
+
+**(d).** The modified $Z$-score for outlier detection aims for data points with $|M_i|>3.5$ where:
+
+$$
+M_i=\frac{0.6745(x_i-\bar x)}{MAD}, \ \text{where} \ MAD=\text{median}_i\{|x_i-\bar x|\}
+$$
+
+Consider the below code to compute modified $Z$-score $M_i$ for each data points
+
+```{r}
+med <- median(travels$TotalTime)
+MAD <- mad(travels$TotalTime)
+m <- 0.6475 * (travels$TotalTime - med) / MAD
+head(sort(m, decreasing=TRUE)) # top positive values
+head(sort(m)) # top negative values
+```
+
+We see that there are two points being above the $|M_i|=3.5$ threshold. Now we create a tibble that contains only these two points.
+
+```{r}
+(out <- travels %>%
+   mutate(ModZScore=abs(0.6475 * (TotalTime - median(TotalTime)) / MAD)) %>%
+   filter(ModZScore > 3.5))
+```

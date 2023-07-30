@@ -1,0 +1,312 @@
+---
+title: "Assessment 5"
+subtitle: "Exploratory Data Analysis and Visualization"
+author: "Ziyang Lin"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, warning=F, message=F)
+library(tidyverse)
+library(GGally)
+library(naniar)
+```
+
+## Introduction
+
+This report outlines the strategy and results of exploratory data analyses and visualizations on the 2017 World Bank Development Indicators data set. Each record in this data set corresponds to a single country where the variables are mainly development indicators of that country. The data set contains $14$ columns in total with a uniquely identifiable country name, $2$ categorical variables for regions and income levels, and the remaining $11$ variables are numerical development indicators which include but not limit to GDP per capita, unemployment rate for both sex, life expectancy for both sex, and $CO_2$ emission per capita.
+
+We primarily focus on the below topics of identifying issues of data quality, such as missing data or outliers; conducting a brief exploration of the univariate and multivariate distribution of several variables in the data; and detecting any clustering behaviour with the aid of dimension reduction techniques.
+
+## Data Quality
+
+From an initial glimpse at the data, we observe that all columns besides educational expense have non-`NA` values for all countries. In particular, there are $12$ such observations, which constitutes $1.3\%$ of the total entries. Our next step will be to characterize the types of missingness in the data.
+
+We plot the missing education expense values against all $12$ variables. In Figure 1 we see that the missingness appears mainly for countries with high or lower middle income. In terms of geographic region, there is only one country in North America in this data set, and this country has missing education expense record. Even though the number of missing observations and the total sample size is relatively small, we can still suspect that there is dependence between the missingness and these categorical variables, so that the missingness is certainlyly not MCAR.
+
+However, examining missingness against the remaining $10$ numerical variables (codes are supplied in the RMarkdown notebook), we find the distributions of missing versus non-missing values of education expenses conditioned on each variable are similar, suggesting that no missingness dependence exists for the numerical variables. Hence we can categorize the missingness as MAR. 
+
+```{r, fig.height=2.7, fig.align="centre", fig.pos="!h", fig.cap="Missingness plot for dducaiton expense against categorical variables"}
+library(tidyverse)
+wb <- read_csv("~/Desktop/DevelopmentIndicators2017_correct.csv")
+wb_na <- wb %>% filter(is.na(Education.Expend))
+
+library(naniar)
+# vis_miss(wb_na) # this determines percentage of missing data
+
+# plot education expend faceted by region and income level
+(missing_plot1 <- ggplot(wb, aes(x = Education.Expend, y = region)) + 
+    geom_miss_point() +
+    facet_wrap(~income) +
+    labs(x="Government expenditure on education, total (% of GDP)",
+         y="Geographical region") + 
+    theme(strip.text.x=element_text(size = 7), axis.text.x=element_text(size = 7)))
+```
+
+```{r, }
+# plot education expend against each numerical variable to compare 
+missing_plot2 <- ggplot(wb, aes(x = Education.Expend, y = GDP.percap)) + 
+  geom_miss_point()
+missing_plot3 <- ggplot(wb, aes(x = Education.Expend, y = Market.Cap.pcntGDP)) + 
+  geom_miss_point()
+missing_plot4 <- ggplot(wb, aes(x = Education.Expend, y = Unemployment.female)) + 
+  geom_miss_point()
+missing_plot5 <- ggplot(wb, aes(x = Education.Expend, y = Unemployment.male)) + 
+  geom_miss_point()
+missing_plot6 <- ggplot(wb, aes(x = Education.Expend, y = Arable.Land.pcnt)) + 
+  geom_miss_point()
+missing_plot7 <- ggplot(wb, aes(x = Education.Expend, y = Life.Expect.female)) + 
+  geom_miss_point()
+missing_plot8 <- ggplot(wb, aes(x = Education.Expend, y = Life.Expect.male)) + 
+  geom_miss_point()
+missing_plot9 <- ggplot(wb, aes(x = Education.Expend, y = Mortality.u5)) + 
+  geom_miss_point()
+missing_plot10 <- ggplot(wb, aes(x = Education.Expend, y = CO2.emiss.mtpercap)) + 
+  geom_miss_point()
+missing_plot11 <- ggplot(wb, aes(x = Education.Expend, y = Access2Elec.pcnt)) + 
+  geom_miss_point()
+```
+
+For this type of missingness, a regression imputation should yield unbiased results but will have a standard error that is too small. Using multiple imputation can avoid this problem, and it also produces reliable results regardless of our level of confidence in a particular imputed value. We perform multiple imputation by applying a linear model of `GDP.percap` against the others (including `Education.Expend`) and pool the results. The imputed values are then used populate the `NA` entries.
+
+```{r}
+library(mice)
+# impute using pmm. This should create 5 imputed data sets
+wb_pmm <- mice(wb, m = 5, maxit = 50, meth = "pmm", seed = 1, print = FALSE) 
+# for each completed data set, build a linear model of GDP.percap against the others
+lm_fits <- with(wb_pmm, lm(GDP.percap~region+income+Education.Expend))
+
+# complete the data set using imputed values
+wb_pmm_complete <- complete(wb_pmm, action=1)
+```
+
+Next we move on to outlier detections. We first investigate the empirical distribution of all numerical variables using histogram (codes in RMarkdown notebook). We observe that the distributions of these variables appear to be mostly different from each other. To have a unified standard for outlier detection, we choose to use the modified $Z$-score statistic. 
+
+```{r}
+# investigating empirical distribution of the variables
+dist_plot1 <- ggplot(wb_pmm_complete, aes(x=GDP.percap)) + geom_histogram()
+dist_plot2 <- ggplot(wb_pmm_complete, aes(x=Market.Cap.pcntGDP)) + geom_histogram()
+dist_plot3 <- ggplot(wb_pmm_complete, aes(x=Unemployment.female)) + geom_histogram()
+dist_plot4 <- ggplot(wb_pmm_complete, aes(x=Unemployment.male)) + geom_histogram()
+dist_plot5 <- ggplot(wb_pmm_complete, aes(x=Arable.Land.pcnt)) + geom_histogram()
+dist_plot6 <- ggplot(wb_pmm_complete, aes(x=Life.Expect.female)) + geom_histogram()
+dist_plot7 <- ggplot(wb_pmm_complete, aes(x=Education.Expend)) + geom_histogram()
+dist_plot8 <- ggplot(wb_pmm_complete, aes(x=Life.Expect.male)) + geom_histogram()
+dist_plot9 <- ggplot(wb_pmm_complete, aes(x=Mortality.u5)) + geom_histogram()
+dist_plot10 <- ggplot(wb_pmm_complete, aes(x=CO2.emiss.mtpercap)) + geom_histogram()
+dist_plot11 <- ggplot(wb_pmm_complete, aes(x=Access2Elec.pcnt)) + geom_histogram()
+```
+
+In Figure 2, for each variable, we computed the modified $Z$-score, and the red dash lines represent the outlier threshold of $|M_i|>3.5$. We observe that some variables such as GDP per capita and $CO_2$ emission per capita have some outlying observations. In particular, two observations for mortality rate under-5 have very large modified $Z$-score values. We are unable to compute this statistic for the variable access to electricity as percentage of population since its $MAD$ is computed at $0$. We applied the normal boxplot method for this variable and discovered all values except $100$ are outside of the interquartile range, thus are categorized as outliers.
+
+```{r, fig.height=3.5, fig.align="centre", fig.pos="!h", fig.cap="Side-by-side boxplots to visualize outliers for 10 numerical variables"}
+wb_pmm_numeric <- wb_pmm_complete %>% select(-c(country, income, region))
+col_mad <- wb_pmm_numeric %>%
+  summarise(across(where(is.numeric), mad)) # get mad for each column
+col_median <- wb_pmm_numeric %>%
+  summarise(across(where(is.numeric), median)) # get median for each column
+
+# save modified z-scores for each column entry
+wb_pmm_numeric_m <- wb_pmm_numeric %>%
+  mutate(GDP.percap=0.6745*(wb_pmm_numeric[,1] - col_median[,1])/col_mad[,1]) %>%
+  mutate(Market.Cap.pcntGDP=0.6745*(wb_pmm_numeric[,2] - col_median[,2])/col_mad[,2]) %>%
+  mutate(Unemployment.female=0.6745*(wb_pmm_numeric[,3] - col_median[,3])/col_mad[,3]) %>%
+  mutate(Unemployment.male=0.6745*(wb_pmm_numeric[,4] - col_median[,4])/col_mad[,4]) %>%
+  mutate(Education.Expend=0.6745*(wb_pmm_numeric[,5] - col_median[,5])/col_mad[,5]) %>%
+  mutate(Arable.Land.pcnt=0.6745*(wb_pmm_numeric[,6] - col_median[,6])/col_mad[,6]) %>%
+  mutate(Life.Expect.female=0.6745*(wb_pmm_numeric[,7] - col_median[,7])/col_mad[,7]) %>%
+  mutate(Life.Expect.male=0.6745*(wb_pmm_numeric[,8] - col_median[,8])/col_mad[,8]) %>%
+  mutate(Mortality.u5=0.6745*(wb_pmm_numeric[,9] - col_median[,9])/col_mad[,9]) %>%
+  mutate(CO2.emiss.mtpercap=0.6745*(wb_pmm_numeric[,10] - col_median[,10])/col_mad[,10]) %>%
+  select(-Access2Elec.pcnt)
+  
+library(reshape2)
+wb_pmm_numeric_m_for_plot <- melt(wb_pmm_numeric_m) # melt the data frame for boxplots
+(outlier_bp <- ggplot(wb_pmm_numeric_m_for_plot, aes(x=variable)) + 
+  geom_boxplot(aes(y=value)) + 
+  geom_abline(intercept = 3.5, slope = 0, color="red", linetype="dashed", size=1.5) + 
+  geom_abline(intercept = -3.5, slope = 0, color="red", linetype="dashed", size=1.5) + 
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(x="Variable", y="Modified Z-Scores")) # generate modified z-score boxplot
+
+electricity_outs <- boxplot.stats(wb_pmm_numeric$Access2Elec.pcnt)$out
+```
+
+## Univariate and Multivariate Exploration
+
+Next we move on to exploring the univariate and multivariate distribution of some variables. We want to study the distribution of GDP per capita, and its marginal and joint distribution with some other variables such as income level and region, life expectancy, and $CO_2$ emission as well as their correlation structure. Figure 3 shows that GDP per capita features an asymmetric right-skewed distribution, but the Q-Q plot does not suggests over or underdispersion, so we should expect its empirical kurtosis to be less than $3$.
+
+```{r, fig.height=3, fig.align='center', out.width="80%", fig.pos="!h", fig.cap="Empirical distribution of GDP per capita"}
+# univariate analysis on gdp per capita
+gdp_plot1 <- ggplot(wb_pmm_complete, aes(x=GDP.percap)) + 
+  geom_histogram(aes(y=after_stat(density)), bins=15, fill="blue", alpha=0.2) + 
+  geom_density(colour="red") +
+  labs(x="GDP per capita (current USD)", y="Frequency")
+  
+
+gdp_plot2 <- ggplot(wb_pmm_complete, aes(sample=GDP.percap)) + 
+  geom_qq(geom = "point", position = "identity", distribution = stats::qnorm) + 
+  geom_qq_line(position = "identity", distribution = stats::qnorm, col="red") + 
+  labs(x="Theoretical Normal Quantiles", y="Sample Quantiles")
+
+library(gridExtra)
+grid.arrange(gdp_plot1, gdp_plot2, ncol=2)
+```
+
+In Figure 4 we compare the distributions of GDP per capita against income levels and geographical regions, and we discovered that these two variables both have visually significant impacts on the center and spread of GDP per capita. In particular, we found that higher income levels translate to a higher GDP per capita, and that South Asia and Sub-Saharan Africa have significantly lower GDP per capita than other regions. In fact, these two regions have no countries that are categorized as high income in this data set.
+
+```{r, fig.height=4, fig.align='center', out.width="80%", fig.pos="!h", fig.cap="Distributions of GDP per capita against income levels and geographical regions"}
+# boxplot for multivariate visualization with GDP per capita against income and region
+(gpd_boxplot <- ggplot(wb_pmm_complete) + 
+  geom_boxplot(aes(x=region, y=GDP.percap, col=income, fill=income)) + 
+  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  labs(x="Geographical region", y="GDP per capita (current USD)"))
+```
+
+Consider Figure 5 for the joint and marginal distribution of GDP per capita against female life expectancy at birth and $CO_2$ emission per capita respectively. Visually we see GDP per capita varies with each of these variables, such that higher life expectancy or higher $CO_2$ emission corresponds to higher GDP per capita. The left panel indicates that the relationship may not be linear, and the right panel also shows that the variance outside of the linear relationship increases as GDP per capita increases.
+
+```{r, fig.height=3, fig.align='center', out.width="80%", fig.pos="!h", fig.cap="Joint and marginal distribution of GDP per capita against female life expectancy and CO2 emission"}
+library(ggExtra)
+
+# bivariate scatterplots
+bv_scatter1 <- ggplot(wb_pmm_complete, aes(x=GDP.percap, y=Life.Expect.female)) + 
+  geom_point(alpha=0.3, col="red") + 
+  labs(x="GDP per capita (current USD)", y="Life expectancy at birth, female (years)")
+bv_scatter2 <- ggplot(wb_pmm_complete, aes(x=GDP.percap, y=CO2.emiss.mtpercap)) + 
+  geom_point(alpha=0.3, col="red") + 
+  labs(x="GDP per capita (current USD)", y="CO2 emissions (metric tons per capita)")
+
+# add the marginal distribution on top of the bivariate scatterplots
+bv_scatter1_marg <- ggMarginal(bv_scatter1, type="violin")
+bv_scatter2_marg <- ggMarginal(bv_scatter2, type="violin")
+
+grid.arrange(bv_scatter1_marg, bv_scatter2_marg, ncol=2)
+```
+
+To conclude this section, we produce a heatmap to visualize all pairwise dependence in Figure 6. We discovered in the diagonal from bottom-left to top-right that GDP per capita is moderately to strongly correlated with all other variables.
+
+```{r, fig.height=4, fig.align='center', fig.pos="!h", fig.cap="Pairwise dependence of all numerical variables in a heatmap"}
+# Q19
+corrmat <- cor(wb_pmm_numeric)
+df_corrmat <- melt(corrmat)
+(corr_heatmap <- ggplot(df_corrmat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() + coord_fixed() + 
+  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  labs(x="Variable 1", y="Variable 2"))
+```
+
+## Cluster Analysis
+
+Considering the structure of the data set, we may naturally believe that clustering behavior would exist for the other numerical variables that relate to the income or region categorical variables. We first construct a generalized pairs plot conditioned on income level, and the plot does not show any distinctive clustering behavior for any combination of the variables. The plot is too large to be contained in this report (but provided in RMarkdown notebook), but we can generate some contour plots for some pairs of the variables as in Figure 7, and observe there is no obvious clusters.
+
+```{r, include=F}
+library(GGally)
+
+# a generalised pairs plot conditioned on income level for cluster visualizations
+ggpairs(data = wb_pmm_complete %>% select(-c(country, region)),
+        mapping = aes(colour=income),
+        progress = FALSE, # suppress verbose progress bar output
+        lower = list(combo = wrap('facethist', bins=20))
+        )
+```
+
+```{r, fig.height=3, fig.align='center', out.width="80%", fig.pos="!h", fig.cap="Pairwise contour plots for some pairs of variables"}
+# contour plots for some pairs of the variables for cluster visualizations
+contour1 <- ggplot(wb_pmm_complete, aes(x=Arable.Land.pcnt, y=CO2.emiss.mtpercap)) +
+  geom_density_2d_filled() + 
+  labs(x="Arable Land (%)", y="CO2 emissions per capita") +
+  theme(legend.position = "none")
+contour2 <- ggplot(wb_pmm_complete, aes(x=GDP.percap, y=Life.Expect.male)) +
+  geom_density_2d_filled() + 
+  labs(x="GDP per capita", y="Life expectancy at birth, male") + 
+  theme(legend.position = "none")
+contour3 <- ggplot(wb_pmm_complete, aes(x=Mortality.u5, y=Education.Expend)) +
+  geom_density_2d_filled() + 
+  labs(x="Mortality rate, under 5", 
+       y="Education expense") + 
+  theme(legend.position = "none")
+
+grid.arrange(contour1, contour2, contour3, ncol=3)
+```
+
+However, only from the above observations cannot let us conclude the non-existence of clusters. Clustering behaviors are sometimes difficult to visualize in high dimension, but we can project the data onto a low-dimensional embedding. We will try $3$ different approaches: principal component analysis, multidimensional scaling, and t-distributed stochastic neighbour embedding. The outputting density plots are shown in Figure 8.
+
+```{r, echo=F}
+# clustering visualization with the help of PCA
+set.seed(1111) # set seed for reproducibility
+wb_pca <- prcomp(wb_pmm_numeric, center = TRUE, scale. = TRUE)
+
+# extract first two PCs
+pc1 <- wb_pca$x[,1]
+pc2 <- wb_pca$x[,2]
+
+pc_df <- data.frame(pc1, pc2, income=wb_pmm_complete$income)
+
+# generate the clustering plot from first two PCs
+pca_cluster_plot <- ggplot(pc_df, aes(x=pc1, y=pc2, col=income)) +
+  geom_point() +
+  geom_density_2d() + 
+  labs(x="First PC", y="Second PC",
+    title="PCA 2D Embedding") +
+  theme_light() + 
+  theme(legend.position = "none", plot.title = element_text(size=11))
+```
+
+```{r, echo=F}
+# clustering visualization with the help of multidimensional scaling
+set.seed(1111) # set seed for reproducibility
+wb_dist <- dist(wb_pmm_numeric) # euclidean distances between the rows
+mds <- cmdscale(wb_dist, eig = TRUE, k = 2) # k is the dim of the reduced space
+
+mds_df <- data.frame(y1=mds$points[,1], 
+                     y2=mds$points[,2],
+                     income=wb_pmm_complete$income)
+
+mds_cluster_plot <- ggplot(mds_df, aes(x=y1, y=y2, col=income)) + 
+  geom_point() +
+  geom_density_2d() + 
+  labs(x="First Dimension", y="Second Dimension",
+    title="MDS 2D Embedding") + 
+  theme_light() + 
+  theme(legend.position = "none", plot.title = element_text(size=11))
+```
+
+```{r, echo=F, results='hide'}
+# clustering visualization with the help of tSNE
+library(Rtsne)
+set.seed(1111) # set seed for reproducibility
+tsne <- Rtsne(wb_pmm_numeric, dims = 2, perplexity = 5, verbose = TRUE, max_iter = 500)
+
+tsne_df <- data.frame(y1=tsne$Y[,1], 
+                      y2=tsne$Y[,2],
+                      income=wb_pmm_complete$income)
+
+tsne_cluster_plot <- ggplot(tsne_df, aes(x=y1, y=y2, col=income)) + 
+  geom_point() +
+  geom_density_2d() + 
+  labs(x="First Dimension", y="Second Dimension",
+       title="t-SNE 2D Embedding") + 
+  theme_light() + 
+  theme(legend.position = "none", plot.title = element_text(size=11))
+```
+
+
+```{r, fig.height=3, fig.align='center', fig.pos="!h", fig.cap="Cluster visualizations with the help of 3 dimension reduction approaches"}
+grid.arrange(pca_cluster_plot, mds_cluster_plot, tsne_cluster_plot, ncol=3)
+```
+
+We observed that the $t$-SNE method produces the most separable clusters, although the boundary is still not entirely clear. In fact, when contrasting with the income levels, the data appears to have more than $3$ clusters, but this already allows us to conclude that there is clustering behavior in the data, and dimension reduction technique helps us extract such clusters in visualizations.
+
+To pursue clustering analysis further, we can apply the $k$-Means clustering algorithm on both the full data set and the PCA-reduced data set. The codes are appended in RMarkdown notebook and we can observe that dimension reduction helps identify the clusters.
+
+```{r, include=F}
+library(factoextra)
+wb_full_km5 <- kmeans(wb_pmm_numeric, centers=5, nstart=10)
+wb_pca_km5 <- kmeans(wb_pca$x[,1:2], centers=5, nstart=10)
+fviz_cluster(wb_full_km5, 
+             data = wb_pmm_numeric,
+             labelsize = 0)
+fviz_cluster(wb_pca_km5, 
+             data = wb_pca$x[,1:2],
+             labelsize = 0)
+```
